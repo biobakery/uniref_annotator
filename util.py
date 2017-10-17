@@ -29,7 +29,7 @@ blast_fields = [
     ["bitscore",float,"Bit score"],
     ["score",float,"Raw score"],
     ["length",int,"Alignment length"],
-    ["pident",int,"Percentage of identical matches"],
+    ["pident",float,"Percentage of identical matches"],
     ["nident",int,"Number of identical matches"],
     ["mismatch",int,"Number of mismatches"],
     ["positive",int,"Number of positive-scoring matches"],
@@ -86,21 +86,17 @@ class Hit:
         # qcov
         self.data["qcov"] = None
         if contains( "qstart qend qlen".split( ), self.data ):
-            self.data["qcov"] = self.data["qend"] - self.data["qstart"] + 1
+            self.data["qcov"] = abs( self.data["qend"] - self.data["qstart"] ) + 1
             self.data["qcov"] /= float( self.data["qlen"] )
         # scov
         self.data["scov"] = None
         if contains( "sstart send slen".split( ), self.data ):
-            self.data["scov"] = self.data["send"] - self.data["sstart"] + 1
+            self.data["scov"] = abs( self.data["send"] - self.data["sstart"] ) + 1
             self.data["scov"] /= float( self.data["slen"] )
         # mcov
         self.data["mcov"] = None
         if self.data["qcov"] is not None and self.data["scov"] is not None:
             self.data["mcov"] = min( self.data["qcov"], self.data["scov"] )
-        # pident
-        self.data["pident"] = None
-        if contains( "nident length".split( ), self.data ):
-            self.data["pident"] = self.data["nident"] / float( self.data["length"] )
         # score
         self.data["strength"] = None
         if self.data["mcov"] is not None and self.data["pident"] is not None:
@@ -108,3 +104,22 @@ class Hit:
         # set as attr
         for f, v in self.data.items( ):
             setattr( self, f, v )
+
+def which( program ):
+    """
+    Adapted from:
+    https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python
+    """
+    ret = None
+    def is_exe( fpath ):
+        return os.path.isfile( fpath ) and os.access( fpath, os.X_OK )
+    fpath, fname = os.path.split( program )
+    if fpath and is_exe( program ):
+        ret = program
+    else:
+        for path in os.environ["PATH"].split( os.pathsep ):
+            path = path.strip( '"' )
+            exe_file = os.path.join( path, program )
+            if is_exe( exe_file ):
+                ret = exe_file
+    return ret

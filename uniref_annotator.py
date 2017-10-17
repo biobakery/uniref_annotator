@@ -6,23 +6,30 @@ import sys
 import argparse
 import csv
 
-from util import Hit
+from util import Hit, which
 
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
 
 c_min_coverage = 0.80
-c_output_format = "6 qseqid sseqid pident qlen slen qstart qend start send"
+c_output_format = "6 qseqid sseqid pident qlen slen qstart qend sstart send"
+g_force_search = False
 
 # ---------------------------------------------------------------
 # cli
 # ---------------------------------------------------------------
 
+description = """
+A script to annotate a fasta file of coding sequence against
+HUMAnN2-formatted UniRef90/UniRef50 databases. Approximates the UniRef
+clustering conventions in that query and target must exceed 80% mutual coverage
+with the corresponding percent identity (e.g. 90 for UniRef90).
+"""
+
 def get_args( ):
     parser = argparse.ArgumentParser( )
     parser.add_argument( "fasta", 
-                         metavar="<path>",
                          help="Sequences to annotate",
                          )
     parser.add_argument( "--seqtype",
@@ -50,19 +57,23 @@ def get_args( ):
                          metavar="<path>",
                          help="Path to UniRef90->UniRef50 idmapping file (optional)",
                          )
-    parser.add_argument( "--tmp",
+    parser.add_argument( "--temp",
                          metavar="<path>",
                          default=".",
-                         help="Path for temp files (default: here)",
+                         help="Path for temp files [default: .]",
                          )
     parser.add_argument( "--out",
                          metavar="<path>",
-                         default="<fasta>.annotated",
-                         help="Path for output file (default: <fasta>.annotated)",
+                         default=None,
+                         help="Path for output file [default: <fasta>.annotated]",
                          )
-    parser.add_argument( "--diamond-flags",
+    parser.add_argument( "--force-search",
+                         action="store_true",
+                         help="Rerun searches, even if expected outputs exist",
+                         )
+    parser.add_argument( "--flags",
                          metavar="<string>",
-                         help="Additional flags to pass to diamond, e.g. --threads <#>",
+                         help="Additional flags to pass to diamond, e.g. --threads",
                          )
     args = parser.parse_args( )
     return args
@@ -80,14 +91,16 @@ def get_mode( path ):
     mode = None
     for test in "90 50".split( ):
         test = "uniref" + test
-        if test in database.lower( ):
+        if test in path.lower( ):
             mode = test
     if mode is None:
-        sys.exit( "Could not infer mode from path: {}".format( database ) )
+        sys.exit( "Could not infer mode from path: {}".format( path ) )
     return mode
 
 def uniref_search( diamond=None, database=None, query=None, seqtype=None, tmp=None, flags=None ):
-    for path in [diamond, database, query, tmp]:
+    if which( diamond ) is None:
+        sys.exit( "<diamond> is not executable as: {}".format( diamond ) )
+    for path in [database, query, tmp]:
         check_path( path )
     binary = {"nuc":"blastx", "prot":"blastp"}[seqtype]
     mode = get_mode( database )
@@ -106,9 +119,12 @@ def uniref_search( diamond=None, database=None, query=None, seqtype=None, tmp=No
         "--out", results,
         ]
     command = " ".join( [str( k ) for k in command] )
-    command += flags if flags is not None else ""
-    print( "Executing:", command, file=sys.stderr )
-    os.system( command )
+    command += (" " + flags) if flags is not None else ""
+    if not os.path.exists( results ) or g_force_search:
+        print( "Executing:", command, file=sys.stderr )
+        os.system( command )
+    else:
+        print( "Using existing results file:", results, file=sys.stderr )
     return results
 
 def parse_results( results ):
@@ -121,34 +137,37 @@ def parse_results( results ):
             h = Hit( row, config=c_output_format )
             if h.qseqid not in mapping:
                 if h.pident >= min_pident and h.mcov >= c_min_coverage:
-                    mapping[h.qseqid] = h.sseqid
+                    uniref = h.sseqid.split( "|" )[0]
+                    mapping[h.qseqid] = uniref
     return mapping
 
-def trans_mapping( mapping, p_trans_map, default=None ):
-    check_path( p_tran_map )
-    trans_map = {}
+def trans_mapping( uniref90map, p_trans_map ):
+    print( "Loading transitive mapping file:", p_trans_map, file=sys.stderr )
+    check_path( p_trans_map )
+    overrides = {}
+    uniref90map_r = {}
+    for header, uniref90 in uniref90map.items( ):
+        uniref90map_r.setdefault( uniref90, set( ) ).add( header )
     with open( p_trans_map ) as fh:
         for row in csv.reader( fh, csv.excel_tab ):
-            trans_map[row[0]] = row[1]
-    overrides = {}
-    for k, v in mapping.items( ):
-        overrides[k] = trans_map.get( v, default )
+            uniref90, uniref50 = row
+            headers = uniref90map_r.get( uniref90, set( ) )
+            for h in headers:
+                overrides[h] = uniref50
     return overrides
 
 def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overrides=None ):
-    if out is None:
-        out = query + ".annotated"
     print( "Writing new output file:", out, file=sys.stderr )
     oh = open( out, "w" )
     with open( query ) as fh:
-        for line in query:
+        for line in fh:
             line = line.strip( )
             if line[0] != ">":
                 print( line, file=oh )
             else:
                 header = line[1:]
                 uniref90code = uniref90map.get( header, "UniRef90_unknown" )
-                uniref50code = uniref90map.get( header, "UniRef50_unknown" )
+                uniref50code = uniref50map.get( header, "UniRef50_unknown" )
                 uniref50code = overrides.get( header, uniref50code )
                 print( "|".join( [line, uniref90code, uniref50code] ), file=oh )
     oh.close( )
@@ -160,11 +179,18 @@ def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overri
     
 def main( ):
     args = get_args( )
+    # global config
+    global g_force_search
+    if args.force_search:
+        g_force_search = True
+    # set defaults
+    if args.out is None:
+        args.out = args.fasta + ".annotated"
     # perform uniref90 search
     uniref90hits = uniref_search( 
         diamond=args.diamond, 
         database=args.uniref90db,
-        query=args.query,
+        query=args.fasta,
         seqtype=args.seqtype,
         tmp=args.temp,
         flags=args.flags, )
@@ -173,18 +199,18 @@ def main( ):
     uniref50hits = uniref_search( 
         diamond=args.diamond, 
         database=args.uniref50db,
-        query=args.query,
+        query=args.fasta,
         seqtype=args.seqtype,
         tmp=args.temp,
         flags=args.flags, )
     uniref50map = parse_results( uniref50hits )
-    # override some mappings?
+    # override mappings?
     overrides = {}
     if args.transitive_map is not None:
         overrides = trans_mapping( uniref90map, args.transitive_map )
     # reannoate the fasta
     reannotate( 
-        query=args.query, 
+        query=args.fasta, 
         out=args.out, 
         uniref90map=uniref90map, 
         uniref50map=uniref50map, 
