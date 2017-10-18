@@ -1,7 +1,36 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import os
 import sys
+from collections import OrderedDict
+
+# ---------------------------------------------------------------
+# helper functions
+# ---------------------------------------------------------------
+
+def which( program ):
+    """
+    Adapted from:
+    https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python
+    """
+    ret = None
+    def is_exe( fpath ):
+        return os.path.isfile( fpath ) and os.access( fpath, os.X_OK )
+    fpath, fname = os.path.split( program )
+    if fpath and is_exe( program ):
+        ret = program
+    else:
+        for path in os.environ["PATH"].split( os.pathsep ):
+            path = path.strip( '"' )
+            exe_file = os.path.join( path, program )
+            if is_exe( exe_file ):
+                ret = exe_file
+    return ret
+
+# ---------------------------------------------------------------
+# working with BLAST-like output
+# ---------------------------------------------------------------
 
 blast_fields = [
     ["qseqid",str,"Query Seq-id"],
@@ -103,21 +132,91 @@ class Hit:
         for f, v in self.data.items( ):
             setattr( self, f, v )
 
-def which( program ):
-    """
-    Adapted from:
-    https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python
-    """
-    ret = None
-    def is_exe( fpath ):
-        return os.path.isfile( fpath ) and os.access( fpath, os.X_OK )
-    fpath, fname = os.path.split( program )
-    if fpath and is_exe( program ):
-        ret = program
-    else:
-        for path in os.environ["PATH"].split( os.pathsep ):
-            path = path.strip( '"' )
-            exe_file = os.path.join( path, program )
-            if is_exe( exe_file ):
-                ret = exe_file
-    return ret
+# ---------------------------------------------------------------
+# dna translation
+# ---------------------------------------------------------------
+
+# used when we find an untranslatable codon
+bad_aa_char = "X"
+
+# for making reverse complement
+switch = {"A":"T", "T":"A", "G":"C", "C":"G"}
+
+# for translating dna to protein
+genetic_code = """
+Ala/A GCT GCC GCA GCG
+Arg/R CGT CGC CGA CGG AGA AGG
+Asn/N AAT AAC
+Asp/D GAT GAC
+Cys/C TGT TGC
+Gln/Q CAA CAG
+Glu/E GAA GAG
+Gly/G GGT GGC GGA GGG
+His/H CAT CAC
+Ile/I ATT ATC ATA
+Leu/L TTA TTG CTT CTC CTA CTG
+Lys/K AAA AAG
+Met/M ATG
+Phe/F TTT TTC
+Pro/P CCT CCC CCA CCG
+Ser/S TCT TCC TCA TCG AGT AGC
+Thr/T ACT ACC ACA ACG
+Trp/W TGG
+Tyr/Y TAT TAC
+Val/V GTT GTC GTA GTG
+Stp/* TAA TGA TAG
+"""
+
+# convert genetic code to dict
+decode = {}
+for line in genetic_code.split( "\n" ):
+    items = line.split( )
+    if len( items ) > 0:
+        long, short = items[0].split( "/" )
+        for codon in items[1:]:
+            decode[codon] = short
+        
+def reverse_complement( dna ):
+    """ convert a dna strand to its reverse complement """
+    return "".join( [switch.get(nuc,"N") for nuc in dna[::-1]] )
+    
+def translate( dna, frame=0, remove_final_stop=False ):
+    """ translate a dna sequence in the desired frame (0,1,2) """
+    peptide = ""
+    i = frame
+    while i + 3 <= len( dna ):
+        peptide += decode.get( dna[i:i+3], bad_aa_char )
+        i += 3
+    if remove_final_stop and peptide[-1] == "*":
+        peptide = peptide[0:-1]
+    return peptide
+
+def read_fasta( path ):
+    fasta = OrderedDict( )
+    header = None
+    with open( path ) as fh:
+        for line in fh:
+            line = line.strip( )
+            if line[0] == ">":
+                header = line
+            else:
+                fasta[header] = fasta.get( header, "" ) + line
+    return fasta
+
+def fill( string, width=100 ):
+    new = ""
+    while len( string ) > width:
+        new += string[0:width] + "\n"
+        string = string[width:]
+    new += string
+    return new
+
+def translate_fasta( inpath, outpath ):
+    fasta = read_fasta( inpath )
+    for header, dna in fasta.items( ):
+        fasta[header] = translate( dna, remove_final_stop=True )
+    with open( outpath, "w" ) as fh:
+        for header, prot in fasta.items( ):
+            print( header, file=fh )
+            print( fill( prot ), file=fh )
+    return None

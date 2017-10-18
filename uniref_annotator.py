@@ -6,16 +6,16 @@ import sys
 import argparse
 import csv
 
-from util import Hit, which
+from util import Hit, which, translate_fasta
 
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
 
-c_min_coverage    = 0.80
-c_max_target_seqs = 10
-c_output_format   = "6 qseqid sseqid pident qlen slen qstart qend sstart send"
-g_force_search    = False
+c_min_coverage   = 0.80
+c_diamond_filter = "--max-target-seqs 20"
+c_output_format  = "6 qseqid sseqid pident qlen qstart qend slen sstart send evalue"
+g_force_search   = False
 
 # ---------------------------------------------------------------
 # cli
@@ -34,8 +34,8 @@ def get_args( ):
                          help="Sequences to annotate",
                          )
     parser.add_argument( "--seqtype",
-                         choices=["nuc", "prot"],
-                         metavar="<nuc/prot>",
+                         choices=["nuc", "cds", "prot"],
+                         metavar="<nuc/cds/prot>",
                          default="nuc",
                          help="Sequence type [default: nuc]",
                          )
@@ -83,9 +83,17 @@ def get_args( ):
 # utils 
 # ---------------------------------------------------------------
 
+def say( *args ):
+    print( *args, file=sys.stderr )
+
+def die( *args ):
+    args = ["FAILED:"] + list( args )
+    print( *args, file=sys.stderr )
+    sys.exit( )
+
 def check_path( path ):
     if not os.path.exists( path ):
-        sys.exit( "The specified path is missing: {}".format( path ) )
+        die( "The specified path is missing: {}".format( path ) )
     return None
 
 def get_mode( path ):
@@ -95,41 +103,41 @@ def get_mode( path ):
         if test in path.lower( ):
             mode = test
     if mode is None:
-        sys.exit( "Could not infer mode from path: {}".format( path ) )
+        die( "Could not infer mode from path: {}".format( path ) )
     return mode
 
-def uniref_search( diamond=None, database=None, query=None, seqtype=None, tmp=None, flags=None ):
+def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=None, flags=None ):
     if which( diamond ) is None:
-        sys.exit( "<diamond> is not executable as: {}".format( diamond ) )
-    for path in [database, query, tmp]:
+        die( "<diamond> is not executable as: {}".format( diamond ) )
+    for path in [database, query, temp]:
         check_path( path )
     binary = {"nuc":"blastx", "prot":"blastp"}[seqtype]
     mode = get_mode( database )
     results = os.path.split( query )[1]
-    results = os.path.join( tmp, results )
-    results = ".".join( [results, mode, "hits"] )    
+    results = os.path.join( temp, results )
+    results = ".".join( [results, mode, "hits"] )
     command = [
         diamond,
         binary,
         "--db", database,
         "--query", query,
         "--outfmt", c_output_format,
-        "--max-target-seqs", c_max_target_seqs,
-        "--id", mode.replace( "uniref", "" ),
-        "--tmpdir", tmp,
+        "--tmpdir", temp,
         "--out", results,
+        "--id", get_mode( results ).replace( "uniref", "" ),
+        c_diamond_filter,
         ]
     command = " ".join( [str( k ) for k in command] )
     command += (" " + flags) if flags is not None else ""
     if not os.path.exists( results ) or g_force_search:
-        print( "Executing:", command, file=sys.stderr )
+        say( "Executing:", command )
         os.system( command )
     else:
-        print( "Using existing results file:", results, file=sys.stderr )
+        say( "Using existing results file:", results )
     return results
 
 def parse_results( results ):
-    print( "Parsing results file:", results, file=sys.stderr )
+    say( "Parsing results file:", results )
     mapping = {}
     mode = get_mode( results )
     min_pident = float( mode.replace( "uniref", "" ) )
@@ -143,7 +151,7 @@ def parse_results( results ):
     return mapping
 
 def trans_mapping( uniref90map, p_trans_map ):
-    print( "Loading transitive mapping file:", p_trans_map, file=sys.stderr )
+    say( "Loading transitive mapping file:", p_trans_map )
     check_path( p_trans_map )
     overrides = {}
     uniref90map_r = {}
@@ -158,7 +166,7 @@ def trans_mapping( uniref90map, p_trans_map ):
     return overrides
 
 def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overrides=None ):
-    print( "Writing new output file:", out, file=sys.stderr )
+    say( "Writing new output file:", out )
     oh = open( out, "w" )
     with open( query ) as fh:
         for line in fh:
@@ -187,22 +195,31 @@ def main( ):
     # set defaults
     if args.out is None:
         args.out = args.fasta + ".annotated"
+    # translate fasta?
+    query = args.fasta
+    if args.seqtype == "cds":
+        query = os.path.split( query )[1]
+        query = os.path.join( args.temp, query )
+        query = query + ".translated"
+        say( "Translating input fasta to:", query )
+        translate_fasta( args.fasta, query )
+        args.seqtype = "prot"
     # perform uniref90 search
     uniref90hits = uniref_search( 
         diamond=args.diamond, 
         database=args.uniref90db,
-        query=args.fasta,
+        query=query,
         seqtype=args.seqtype,
-        tmp=args.temp,
+        temp=args.temp,
         flags=args.flags, )
     uniref90map = parse_results( uniref90hits )
     # perform uniref50 search
     uniref50hits = uniref_search( 
         diamond=args.diamond, 
         database=args.uniref50db,
-        query=args.fasta,
+        query=query,
         seqtype=args.seqtype,
-        tmp=args.temp,
+        temp=args.temp,
         flags=args.flags, )
     uniref50map = parse_results( uniref50hits )
     # override mappings?
