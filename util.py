@@ -3,8 +3,6 @@
 import os
 import sys
 
-from zopy.utils import die
-
 blast_fields = [
     ["qseqid",str,"Query Seq-id"],
     ["qgi",str,"Query GI"],
@@ -63,8 +61,8 @@ for n, t, d in blast_fields:
 
 def contains( items, collection ):
     ret = True
-    for i in items:
-        if i not in collection:
+    for k in items:
+        if k not in collection:
             ret = False
             break
     return ret
@@ -100,7 +98,7 @@ class Hit:
         # score
         self.data["strength"] = None
         if self.data["mcov"] is not None and self.data["pident"] is not None:
-            self.data["strength"] = self.data["mcov"] * self.data["pident"]
+            self.data["strength"] = self.data["mcov"] * self.data["pident"] / 100.0
         # set as attr
         for f, v in self.data.items( ):
             setattr( self, f, v )

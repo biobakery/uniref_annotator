@@ -12,9 +12,10 @@ from util import Hit, which
 # constants
 # ---------------------------------------------------------------
 
-c_min_coverage = 0.80
-c_output_format = "6 qseqid sseqid pident qlen slen qstart qend sstart send"
-g_force_search = False
+c_min_coverage    = 0.80
+c_max_target_seqs = 10
+c_output_format   = "6 qseqid sseqid pident qlen slen qstart qend sstart send"
+g_force_search    = False
 
 # ---------------------------------------------------------------
 # cli
@@ -113,7 +114,7 @@ def uniref_search( diamond=None, database=None, query=None, seqtype=None, tmp=No
         "--db", database,
         "--query", query,
         "--outfmt", c_output_format,
-        "--max-target-seqs", 1,
+        "--max-target-seqs", c_max_target_seqs,
         "--id", mode.replace( "uniref", "" ),
         "--tmpdir", tmp,
         "--out", results,
