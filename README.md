@@ -53,6 +53,12 @@ In the event that a CDS maps to a UniRef90, the `--transitive map` option will
 look up that UniRef90s corresponding UniRef50 rather than inferring the UniRef50
 from mapping results.
 
+## Runtime
+
+Annotating the *S. cerevisiae* pangenome (~6K sequences; ~10 MB) using the above
+command required ~20 minutes of real-world time (using 8 cores for search). 
+Running the same command on existing mapping results takes ~20 seconds.
+
 ## Database paths
 
 As of the time of writing (10/2017), you can find compatible database files at the 
