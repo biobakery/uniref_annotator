@@ -8,15 +8,21 @@ import csv
 
 from utils import say, die, check_path, which, Hit, translate_fasta
 
+"""
+NOTES:
+When we transition to DIAMOND 0.9+, change the search
+to manually enforce query and subject coverage and then
+only consider the top hit.
+"""
+
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
 
-c_min_coverage   = 0.80
-#c_diamond_filter = "--max-target-seqs 20"
-c_diamond_filter = ""
-c_output_format  = "6 qseqid sseqid pident qlen qstart qend slen sstart send evalue"
-g_force_search   = False
+c_min_coverage    = 0.80
+c_diamond_filters = ""
+c_output_format   = "6 qseqid sseqid pident qlen qstart qend slen sstart send evalue"
+g_force_search    = False
 
 # ---------------------------------------------------------------
 # cli
@@ -30,15 +36,15 @@ with the corresponding percent identity (e.g. 90 for UniRef90).
 """
 
 def get_args( ):
-    parser = argparse.ArgumentParser( )
+    parser = argparse.ArgumentParser( description=description )
     parser.add_argument( "fasta", 
                          help="Sequences to annotate",
                          )
     parser.add_argument( "--seqtype",
-                         choices=["nuc", "cds", "prot"],
-                         metavar="<nuc/cds/prot>",
-                         default="nuc",
-                         help="Sequence type [default: nuc]",
+                         choices=["cds", "nuc", "prot"],
+                         metavar="<cds/nuc/prot>",
+                         default="cds",
+                         help="Sequence type [default: cds]",
                          )
     parser.add_argument( "--diamond",
                          metavar="<path>",
@@ -73,9 +79,9 @@ def get_args( ):
                          action="store_true",
                          help="Rerun searches, even if expected outputs exist",
                          )
-    parser.add_argument( "--flags",
+    parser.add_argument( "--diamond-options",
                          metavar="<string>",
-                         help="Additional flags to pass to diamond, e.g. --threads",
+                         help="Additional options to pass to diamond, e.g. --threads",
                          )
     args = parser.parse_args( )
     return args
@@ -107,7 +113,7 @@ def get_mode( path ):
         die( "Could not infer mode from path: {}".format( path ) )
     return mode
 
-def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=None, flags=None ):
+def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=None, diamond_options=None ):
     if which( diamond ) is None:
         die( "<diamond> is not executable as: {}".format( diamond ) )
     for path in [database, query, temp]:
@@ -126,10 +132,10 @@ def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=N
         "--tmpdir", temp,
         "--out", results,
         "--id", get_mode( results ).replace( "uniref", "" ),
-        c_diamond_filter,
+        c_diamond_filters,
         ]
     command = " ".join( [str( k ) for k in command] )
-    command += (" " + flags) if flags is not None else ""
+    command += (" " + diamond_options) if diamond_options is not None else ""
     if not os.path.exists( results ) or g_force_search:
         say( "Executing:", command )
         os.system( command )
@@ -212,7 +218,7 @@ def main( ):
         query=query,
         seqtype=args.seqtype,
         temp=args.temp,
-        flags=args.flags, )
+        diamond_options=args.diamond_options, )
     uniref90map = parse_results( uniref90hits )
     # perform uniref50 search
     uniref50hits = uniref_search( 
@@ -221,7 +227,7 @@ def main( ):
         query=query,
         seqtype=args.seqtype,
         temp=args.temp,
-        flags=args.flags, )
+        diamond_options=args.diamond_options, )
     uniref50map = parse_results( uniref50hits )
     # override mappings?
     overrides = {}
