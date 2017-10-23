@@ -6,14 +6,15 @@ import sys
 import argparse
 import csv
 
-from util import Hit, which, translate_fasta
+from utils import say, die, check_path, which, Hit, translate_fasta
 
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
 
 c_min_coverage   = 0.80
-c_diamond_filter = "--max-target-seqs 20"
+#c_diamond_filter = "--max-target-seqs 20"
+c_diamond_filter = ""
 c_output_format  = "6 qseqid sseqid pident qlen qstart qend slen sstart send evalue"
 g_force_search   = False
 
