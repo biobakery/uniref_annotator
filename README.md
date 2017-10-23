@@ -1,18 +1,19 @@
 # uniref_annotator.py
 
-**Author**: Eric Franzosa (eric.franzosa@gmail.com)
-
 This is a script to annotate a fasta file of coding sequences against HUMAnN2-
 formatted UniRef90/UniRef50 databases. The script performs a DIAMOND search of 
 the input against the databases, and then enforces UniRef's clustering criteria 
 on the mapping results to annotate the input sequences. Specifically, to receive 
-a UniRef90 annotation, a sequence must have <90% identify to> and <80% mutual 
-coverage of> the centroid. 
+a UniRef90 annotation, a sequence must have 1) >=90% alignment identify to and
+2) >=80% mutual coverage of the centroid.
 
-This approximates UniRef's clustering criteria that a cluster member must have 
-X% identity (e.g. 90 in the case of UniRef90) and 80% coverage of the cluster 
-seed. The annotation is approximate in that the comparisons are made to cluster
-representatives, which are often not the cluster seed (longest) sequence.
+This approximates UniRef's clustering criteria in which a cluster member must 
+have X% identity (e.g. 90 in the case of UniRef90) and 80% coverage of the 
+cluster seed. The annotation is approximate in that the comparisons are made 
+to cluster representatives, which are often not the cluster seed (longest) 
+sequence.
+
+**Author**: Eric Franzosa (eric.franzosa@gmail.com)
 
 ## Requirements
 
