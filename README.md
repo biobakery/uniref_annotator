@@ -9,9 +9,9 @@ a UniRef90 annotation, a sequence must have 1) >=90% alignment identify to and
 
 This approximates UniRef's clustering criteria in which a cluster member must 
 have X% identity (e.g. 90 in the case of UniRef90) and 80% coverage of the 
-cluster seed. The annotation is approximate in that the comparisons are made 
-to cluster representatives, which are often not the cluster seed (longest) 
-sequence.
+cluster seed. The annotation is approximate in that our comparisons are made 
+with cluster representatives (i.e. the sequences in the UniRef files), which are
+not necessarily the cluster seed (longest) sequences.
 
 **Author**: Eric Franzosa (eric.franzosa@gmail.com)
 
@@ -47,10 +47,10 @@ NEW, FAILED MAPPING:
 
 When running with `--seqtype cds`, the script will translate coding sequences to
 protein and then run a `blastp`-like search. I have found this to produce better 
-results than simplying `blastx`-ing the CDSs vs UniRef90/50.
+results than simply `blastx`-ing the CDSs vs. UniRef90/50.
 
-In the event that a CDS maps to a UniRef90, the `--transitive map` option will
-look up that UniRef90s corresponding UniRef50 rather than inferring the UniRef50
+In the event that a CDS maps to a UniRef90, the `--transitive-map` option will
+look up that UniRef90's corresponding UniRef50 rather than inferring the UniRef50
 from mapping results.
 
 ## Runtime
