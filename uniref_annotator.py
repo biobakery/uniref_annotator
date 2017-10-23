@@ -90,19 +90,6 @@ def get_args( ):
 # utils 
 # ---------------------------------------------------------------
 
-def say( *args ):
-    print( *args, file=sys.stderr )
-
-def die( *args ):
-    args = ["FAILED:"] + list( args )
-    print( *args, file=sys.stderr )
-    sys.exit( )
-
-def check_path( path ):
-    if not os.path.exists( path ):
-        die( "The specified path is missing: {}".format( path ) )
-    return None
-
 def get_mode( path ):
     mode = None
     for test in "90 50".split( ):
