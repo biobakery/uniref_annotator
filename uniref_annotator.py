@@ -132,6 +132,7 @@ def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=N
 
 def parse_results( results ):
     say( "Parsing results file:", results )
+    check_path( results )
     mapping = {}
     mode = get_mode( results )
     min_pident = float( mode.replace( "uniref", "" ) )
