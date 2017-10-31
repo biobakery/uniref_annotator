@@ -124,14 +124,14 @@ def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=N
     command = " ".join( [str( k ) for k in command] )
     command += (" " + diamond_options) if diamond_options is not None else ""
     if not os.path.exists( results ) or g_force_search:
-        say( "Executing:", command )
+        say( "Executing:\n ", command )
         os.system( command )
     else:
-        say( "Using existing results file:", results )
+        say( "Using existing results file:\n ", results )
     return results
 
 def parse_results( results ):
-    say( "Parsing results file:", results )
+    say( "Parsing results file:\n ", results )
     check_path( results )
     mapping = {}
     mode = get_mode( results )
@@ -146,7 +146,7 @@ def parse_results( results ):
     return mapping
 
 def trans_mapping( uniref90map, p_trans_map ):
-    say( "Loading transitive mapping file:", p_trans_map )
+    say( "Loading transitive mapping file:\n ", p_trans_map )
     check_path( p_trans_map )
     overrides = {}
     uniref90map_r = {}
@@ -161,8 +161,9 @@ def trans_mapping( uniref90map, p_trans_map ):
     return overrides
 
 def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overrides=None ):
-    say( "Writing new output file:", out )
+    say( "Writing new output file:\n ", out )
     oh = open( out, "w" )
+    ntot, nmap90, ninf50, nmap50 = [0 for i in range( 4 )] 
     with open( query ) as fh:
         for line in fh:
             line = line.strip( )
@@ -170,11 +171,30 @@ def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overri
                 print( line, file=oh )
             else:
                 header = line[1:]
-                uniref90code = uniref90map.get( header, "UniRef90_unknown" )
-                uniref50code = uniref50map.get( header, "UniRef50_unknown" )
-                uniref50code = overrides.get( header, uniref50code )
+                ntot += 1
+                uniref90code = "UniRef90_unknown"
+                if header in uniref90map:
+                    uniref90code = uniref90map[header]
+                    nmap90 += 1
+                uniref50code = "UniRef50_unknown"
+                if header in overrides:
+                    uniref50code = overrides[header]
+                    ninf50 += 1
+                elif header in uniref50map:
+                    uniref50code = uniref50map[header]
+                    nmap50 += 1
                 print( "|".join( [line, uniref90code, uniref50code] ), file=oh )
     oh.close( )
+    # report
+    say( "Summary of annotations:" )
+    say( "  Genes in input FASTA: {:,}".format( ntot ) )
+    say( "  UniRef90 codes assigned: {:,} ({:.1f}%)".format(
+            nmap90, 100 * nmap90 / float( ntot ) ) )
+    say( "  UniRef50 codes assigned: {:,} ({:.1f}%)".format( 
+            nmap50 + ninf50, 100 * (nmap50 + ninf50) / float( ntot ) ) )
+    say( "  UniRef50 codes inferred from UniRef90 codes: {:,} ({:.1f}%)".format( 
+            ninf50, 100 * ninf50 / float( ntot ) ) )
+    # done
     return None
 
 # ---------------------------------------------------------------
@@ -196,7 +216,7 @@ def main( ):
         query = os.path.split( query )[1]
         query = os.path.join( args.temp, query )
         query = query + ".translated"
-        say( "Translating input fasta to:", query )
+        say( "Translating input fasta to:\n ", query )
         translate_fasta( args.fasta, query )
         args.seqtype = "prot"
     # perform uniref90 search
@@ -228,6 +248,8 @@ def main( ):
         uniref90map=uniref90map, 
         uniref50map=uniref50map, 
         overrides=overrides, )
+    # done
+    say( "Finished successfully." )
 
 if __name__ == "__main__":
     main( )
