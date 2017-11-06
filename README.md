@@ -69,3 +69,5 @@ uniref90.dmnd -> /n/huttenhower_lab/data/humann2_databases/uniref_annotated/unir
 uniref50.dmnd -> /n/huttenhower_lab/data/humann2_databases/uniref_annotated/v1.1_uniref50/uniref50_annotated.1.1.dmnd
 map_uniref90_uniref50.tsv -> /n/huttenhower_lab/data/idmapping/map_UniRef90_UniRef50.uniq.dat
 ```
+
+**NOTE**: The above DIAMOND databases are formatted for DIAMOND v0.8, and will not be compatible with DIAMOND v0.9+.
