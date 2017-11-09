@@ -214,6 +214,10 @@ def read_fasta( path ):
                 header = line
             else:
                 fasta[header] = fasta.get( header, "" ) + line
+    for header in fasta:
+        if len( header.split( ) ) > 1:
+            say( "White space in FASTA headers. Attempting to compensate." )
+            break
     return fasta
 
 def fill( string, width=100 ):

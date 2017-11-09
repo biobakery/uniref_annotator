@@ -170,7 +170,8 @@ def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overri
             if line[0] != ">":
                 print( line, file=oh )
             else:
-                header = line[1:]
+                # diamond breaks the header on whitespace
+                header = line[1:].split( )[0]
                 ntot += 1
                 uniref90code = "UniRef90_unknown"
                 if header in uniref90map:
