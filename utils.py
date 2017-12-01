@@ -210,7 +210,9 @@ def read_fasta( path ):
     with open( path ) as fh:
         for line in fh:
             line = line.strip( )
-            if line[0] == ">":
+            if line == "":
+                continue
+            elif line[0] == ">":
                 header = line
             else:
                 fasta[header] = fasta.get( header, "" ) + line
