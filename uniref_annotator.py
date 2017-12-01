@@ -167,7 +167,9 @@ def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overri
     with open( query ) as fh:
         for line in fh:
             line = line.strip( )
-            if line[0] != ">":
+            if line == "":
+                continue
+            elif line[0] != ">":
                 print( line, file=oh )
             else:
                 # diamond breaks the header on whitespace
