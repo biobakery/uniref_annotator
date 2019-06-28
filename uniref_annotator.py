@@ -6,23 +6,19 @@ import sys
 import argparse
 import csv
 
-from utils import say, die, check_path, which, Hit, translate_fasta
-
-"""
-NOTES:
-When we transition to DIAMOND 0.9+, change the search
-to manually enforce query and subject coverage and then
-only consider the top hit.
-"""
+from utils import say, die, check_path, which, Hit, translate_fasta, try_open
 
 # ---------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------
 
 c_min_coverage    = 0.80
-c_diamond_filters = ""
+
+#c_diamond_filters = "--query-cover {COV:d} --subject-cover {COV:d} --max-target-seqs 1"
+#c_diamond_filters = c_diamond_filters.format( COV = int( 100 * c_min_coverage ) )
+
+c_diamond_filters = "--evalue 1"
 c_output_format   = "6 qseqid sseqid pident qlen qstart qend slen sstart send evalue"
-g_force_search    = False
 
 # ---------------------------------------------------------------
 # cli
@@ -100,7 +96,7 @@ def get_mode( path ):
         die( "Could not infer mode from path: {}".format( path ) )
     return mode
 
-def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=None, diamond_options=None ):
+def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=None, diamond_options=None, force_search=False ):
     if which( diamond ) is None:
         die( "<diamond> is not executable as: {}".format( diamond ) )
     for path in [database, query, temp]:
@@ -123,7 +119,7 @@ def uniref_search( diamond=None, database=None, query=None, seqtype=None, temp=N
         ]
     command = " ".join( [str( k ) for k in command] )
     command += (" " + diamond_options) if diamond_options is not None else ""
-    if not os.path.exists( results ) or g_force_search:
+    if force_search or not os.path.exists( results ):
         say( "Executing:\n ", command )
         os.system( command )
     else:
@@ -136,7 +132,7 @@ def parse_results( results ):
     mapping = {}
     mode = get_mode( results )
     min_pident = float( mode.replace( "uniref", "" ) )
-    with open( results ) as fh:
+    with try_open( results ) as fh:
         for row in csv.reader( fh, csv.excel_tab ):
             h = Hit( row, config=c_output_format )
             if h.qseqid not in mapping:
@@ -152,7 +148,7 @@ def trans_mapping( uniref90map, p_trans_map ):
     uniref90map_r = {}
     for header, uniref90 in uniref90map.items( ):
         uniref90map_r.setdefault( uniref90, set( ) ).add( header )
-    with open( p_trans_map ) as fh:
+    with try_open( p_trans_map ) as fh:
         for row in csv.reader( fh, csv.excel_tab ):
             uniref90, uniref50 = row
             headers = uniref90map_r.get( uniref90, set( ) )
@@ -162,9 +158,9 @@ def trans_mapping( uniref90map, p_trans_map ):
 
 def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overrides=None ):
     say( "Writing new output file:\n ", out )
-    oh = open( out, "w" )
+    oh = try_open( out, "w" )
     ntot, nmap90, ninf50, nmap50 = [0 for i in range( 4 )] 
-    with open( query ) as fh:
+    with try_open( query ) as fh:
         for line in fh:
             line = line.strip( )
             if line == "":
@@ -206,10 +202,6 @@ def reannotate( query=None, out=None, uniref90map=None, uniref50map=None, overri
     
 def main( ):
     args = get_args( )
-    # global config
-    global g_force_search
-    if args.force_search:
-        g_force_search = True
     # set defaults
     if args.out is None:
         args.out = args.fasta + ".annotated"
@@ -229,7 +221,9 @@ def main( ):
         query=query,
         seqtype=args.seqtype,
         temp=args.temp,
-        diamond_options=args.diamond_options, )
+        diamond_options=args.diamond_options,
+        force_search=args.force_search,
+    )
     uniref90map = parse_results( uniref90hits )
     # perform uniref50 search
     uniref50hits = uniref_search( 
@@ -238,7 +232,9 @@ def main( ):
         query=query,
         seqtype=args.seqtype,
         temp=args.temp,
-        diamond_options=args.diamond_options, )
+        diamond_options=args.diamond_options,
+        force_search=args.force_search,
+    )
     uniref50map = parse_results( uniref50hits )
     # override mappings?
     overrides = {}

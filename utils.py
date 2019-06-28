@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+
 import os
 import sys
+import gzip
+import bz2
 from collections import OrderedDict
 
 # ---------------------------------------------------------------
@@ -40,6 +43,22 @@ def which( program ):
             if is_exe( exe_file ):
                 ret = exe_file
     return ret
+
+def try_open( path, *args, **kwargs ):
+    """ open an uncompressed or gzipped file; fail gracefully """
+    fh = None
+    if True:
+        if path.endswith( ".gz" ):
+            say( "Treating", path, "as gzipped file" )
+            fh = gzip.GzipFile( path, *args, **kwargs )
+        elif path.endswith( ".bz2" ):
+            say( "Treating", path, "as bzipped file" )
+            fh = bz2.BZ2File( path, *args )
+        else:
+            fh = open( path, *args, **kwargs )
+    else:
+        die( "Problem opening", path )
+    return fh
 
 # ---------------------------------------------------------------
 # working with BLAST-like output
